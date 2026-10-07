@@ -1,7 +1,15 @@
+import importlib.util
 import logging
+import os
 import threading
 from argparse import Namespace
 from dataclasses import asdict
+
+# NeMo (lightning) segfaults when imported after the Whisper backend modules below
+# (seen with torch 2.6/cu124, ctranslate2 4.8, nemo 3.0). When NeMo is installed, import it
+# first so Sortformer diarization / speaker identity can load. WLK_SKIP_NEMO_PREIMPORT=1 opts out.
+if importlib.util.find_spec("nemo") is not None and not os.environ.get("WLK_SKIP_NEMO_PREIMPORT"):
+    import nemo.collections.asr  # noqa: F401,E402
 
 from whisperlivekit.config import WhisperLiveKitConfig
 from whisperlivekit.local_agreement.online_asr import OnlineASRProcessor
@@ -89,10 +97,6 @@ class TranscriptionEngine:
         # Backward compat: expose as self.args (Namespace-like) for AudioProcessor etc.
         self.args = Namespace(**asdict(config))
 
-        if config.diarization and config.diarization_backend == "sortformer":
-            # Importing NeMo (lightning) after the Whisper backend is loaded segfaults
-            # (seen with torch 2.6/cu124, ctranslate2 4.8, nemo 3.0); import it first.
-            import nemo.collections.asr  # noqa: F401
 
         self.asr = None
         self.tokenizer = None
