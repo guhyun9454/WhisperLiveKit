@@ -192,6 +192,12 @@ class WhisperLiveKitConfig:
     pause_segmentation_seconds: float = 5.0
     # None exposes every speaker channel provided by the Sortformer checkpoint.
     sortformer_max_speakers: Optional[int] = None
+    # Persistent speaker identity: directory of enrolled profiles (None disables).
+    speaker_profiles: Optional[str] = None
+    speaker_threshold: float = 0.75
+    speaker_margin: float = 0.10
+    # Comma-separated names to restrict matching to (e.g. today's attendees).
+    speaker_candidates: Optional[str] = None
 
     def __post_init__(self):
         for name in ("max_buffered_audio", "backpressure_timeout"):
@@ -221,6 +227,11 @@ class WhisperLiveKitConfig:
                 raise ValueError(
                     "sortformer_max_speakers requires diarization_backend=sortformer."
                 )
+
+        if self.speaker_profiles is not None and not (
+            self.diarization and self.diarization_backend == "sortformer"
+        ):
+            raise ValueError("speaker_profiles requires --diarization with the sortformer backend.")
 
         # .en model suffix forces English for Whisper-family backends.
         if (

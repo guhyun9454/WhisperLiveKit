@@ -143,6 +143,8 @@ class Segment(TimedText):
     speaker: Optional[str]
     tokens: Optional[List[ASRToken]] = None
     translation: Optional[Translation] = None
+    # Set only when persistent speaker identity is enabled: {"speaker_name": str|None, "speaker_confidence": float|None}
+    identity: Optional[Dict[str, Any]] = None
 
     @classmethod
     def from_tokens(
@@ -189,6 +191,8 @@ class Segment(TimedText):
             _dict['translation'] = self.translation
         if self.detected_language:
             _dict['detected_language'] = self.detected_language
+        if self.identity is not None:
+            _dict.update(self.identity)
         return _dict
 
 

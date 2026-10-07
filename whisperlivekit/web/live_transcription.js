@@ -449,7 +449,7 @@ function renderLinesWithBuffer(
   const showPolicyLag = !isFinalizing && policyLag > LAG_DISPLAY_THRESHOLD;
   const showDiaLag = !isFinalizing && !!buffer_diarization && remaining_time_diarization > 0;
   const signature = JSON.stringify({
-    lines: (lines || []).map((it) => ({ speaker: it.speaker, text: it.text, translation: it.translation, start: it.start, end: it.end, detected_language: it.detected_language })),
+    lines: (lines || []).map((it) => ({ speaker: it.speaker, speaker_name: it.speaker_name, text: it.text, translation: it.translation, start: it.start, end: it.end, detected_language: it.detected_language })),
     buffer_transcription: buffer_transcription || "",
     buffer_diarization: buffer_diarization || "",
     buffer_translation: buffer_translation,
@@ -499,7 +499,9 @@ function renderLinesWithBuffer(
           remaining_time_diarization
         )}</span> second(s) of audio are undergoing diarization</span></span>`;
       } else if (item.speaker !== 0) {
-        const speakerNum = `<span class="speaker-badge">${escapeHtml(item.speaker)}</span>`;
+        const speakerNum = item.speaker_name
+          ? `<span class="speaker-badge" title="Speaker ${escapeHtml(item.speaker)}">${escapeHtml(item.speaker_name)}</span>`
+          : `<span class="speaker-badge">${escapeHtml(item.speaker)}</span>`;
         speakerLabel = `<span id="speaker">${speakerIcon}${speakerNum}<span id='timeInfo'>${timeInfo}</span></span>`;
 
         if (item.detected_language) {

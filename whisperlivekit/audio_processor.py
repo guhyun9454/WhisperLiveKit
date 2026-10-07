@@ -796,6 +796,16 @@ class AudioProcessor:
         logger.info("Transcription processor task finished.")
 
 
+    def _attach_speaker_identity(self, lines) -> None:
+        """Add speaker_name / speaker_confidence to diarized lines when profiles are enabled."""
+        identifier = getattr(self.diarization, "identifier", None)
+        if identifier is None:
+            return
+        for line in lines:
+            if isinstance(line.speaker, int) and line.speaker > 0:
+                name, conf = identifier.identity(line.speaker - 1)
+                line.identity = {"speaker_name": name, "speaker_confidence": conf}
+
     async def _update_diarization_state(self, diarization_segments) -> None:
         """Push new diarization segments into the shared state."""
         if not diarization_segments:
@@ -887,6 +897,7 @@ class AudioProcessor:
                     translation=bool(self.translation),
                     audio_time=audio_time,
                 )
+                self._attach_speaker_identity(lines)
                 state = await self.get_current_state()
 
                 buffer_transcription_text = state.buffer_transcription.text if state.buffer_transcription else ''

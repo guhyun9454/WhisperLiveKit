@@ -494,6 +494,8 @@ Each element in `lines` has the following shape:
 | Field               | Type   | Presence    | Description |
 |---------------------|--------|-------------|-------------|
 | `speaker`           | int    | Always      | Speaker ID. Normally `1`, `2`, `3`, etc. The special value `-2` indicates a silence segment. When diarization is disabled, defaults to `1`. |
+| `speaker_name`      | string \| null | With `--speaker-profiles` | Enrolled person this session speaker was matched to, or `null` while unknown. Once set it stays fixed for the session. |
+| `speaker_confidence`| float \| null  | With `--speaker-profiles` | Cosine score of the best profile match (`null` before enough speech). |
 | `text`              | string | Always      | The transcribed text for this segment. `null` for silence segments. |
 | `start`             | string | Always      | Start timestamp formatted as `H:MM:SS` (e.g. `"0:00:03"`). |
 | `end`               | string | Always      | End timestamp formatted as `H:MM:SS`. |

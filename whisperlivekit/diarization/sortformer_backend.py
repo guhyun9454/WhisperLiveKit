@@ -154,6 +154,7 @@ class SortformerDiarizationOnline:
         shared_model,
         sample_rate: int = 16000,
         max_speakers: Optional[int] = None,
+        identifier=None,
     ):
         """
         Initialize the streaming Sortformer diarization system.
@@ -165,6 +166,8 @@ class SortformerDiarizationOnline:
                 estimate of its true speaker count.
         """
         self.sample_rate = sample_rate
+        # Optional SessionSpeakerIdentifier: names slots from confident frames of each chunk.
+        self.identifier = identifier
         self.diarization_segments = []
         self.diar_segments = []
         self.buffer_audio = np.array([], dtype=np.float32)
@@ -306,6 +309,9 @@ class SortformerDiarizationOnline:
             if self.total_preds.shape[1] > max_kept_frames:
                 self.total_preds = self.total_preds[:, -max_kept_frames:, :].contiguous()
         new_segments = self._process_predictions()
+        if self.identifier is not None and self._len_prediction:
+            chunk_preds = self.total_preds[0, -self._len_prediction:, :self.max_speakers].cpu().numpy()
+            self.identifier.process_chunk(audio, chunk_preds)
 
         self._chunk_index += 1
         return new_segments

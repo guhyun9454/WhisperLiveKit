@@ -71,6 +71,24 @@ def build_parser():
     )
 
     parser.add_argument(
+        "--speaker-profiles",
+        type=str,
+        default=None,
+        dest="speaker_profiles",
+        help=(
+            "Directory of enrolled speaker profiles. Names Sortformer speakers across sessions "
+            "(adds speaker_name / speaker_confidence to each line). Enroll with "
+            "`python -m whisperlivekit.diarization.speaker_identity enroll DIR NAME audio.wav`."
+        ),
+    )
+    parser.add_argument("--speaker-threshold", type=float, default=0.75, dest="speaker_threshold",
+                        help="Minimum cosine score to name a speaker (default 0.75).")
+    parser.add_argument("--speaker-margin", type=float, default=0.10, dest="speaker_margin",
+                        help="Required gap between best and second-best profile (default 0.10).")
+    parser.add_argument("--speaker-candidates", type=str, default=None, dest="speaker_candidates",
+                        help="Comma-separated profile names to consider, e.g. today's attendees.")
+
+    parser.add_argument(
         "--sortformer-max-speakers",
         type=int,
         choices=range(1, 5),

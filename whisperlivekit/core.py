@@ -289,6 +289,16 @@ class TranscriptionEngine:
             elif config.diarization_backend == "sortformer":
                 from whisperlivekit.diarization.sortformer_backend import SortformerDiarization
                 self.diarization_model = SortformerDiarization(model_path=config.sortformer_model_path)
+                self.diarization_model.speaker_identity = None
+                if config.speaker_profiles:
+                    from whisperlivekit.diarization.speaker_identity import SpeakerIdentityModel
+                    self.diarization_model.speaker_identity = SpeakerIdentityModel(
+                        config.speaker_profiles,
+                        threshold=config.speaker_threshold,
+                        margin=config.speaker_margin,
+                        candidates=[c.strip() for c in config.speaker_candidates.split(",")]
+                        if config.speaker_candidates else None,
+                    )
 
         self.translation_model = None
         if config.target_language:
@@ -508,9 +518,11 @@ def online_diarization_factory(args, diarization_backend):
         # Not the best here, since several user/instances will share the same backend, but diart is not SOTA anymore and sortformer is recommended
     elif args.diarization_backend == "sortformer":
         from whisperlivekit.diarization.sortformer_backend import SortformerDiarizationOnline
+        identity = getattr(diarization_backend, "speaker_identity", None)
         online = SortformerDiarizationOnline(
             shared_model=diarization_backend,
             max_speakers=getattr(args, "sortformer_max_speakers", None),
+            identifier=identity.new_session() if identity else None,
         )
     else:
         raise ValueError(f"Unknown diarization backend: {args.diarization_backend}")
