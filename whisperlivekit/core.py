@@ -89,6 +89,11 @@ class TranscriptionEngine:
         # Backward compat: expose as self.args (Namespace-like) for AudioProcessor etc.
         self.args = Namespace(**asdict(config))
 
+        if config.diarization and config.diarization_backend == "sortformer":
+            # Importing NeMo (lightning) after the Whisper backend is loaded segfaults
+            # (seen with torch 2.6/cu124, ctranslate2 4.8, nemo 3.0); import it first.
+            import nemo.collections.asr  # noqa: F401
+
         self.asr = None
         self.tokenizer = None
         self.diarization = None
