@@ -802,8 +802,12 @@ class AudioProcessor:
         if identifier is None:
             return
         for line in lines:
-            if isinstance(line.speaker, int) and line.speaker > 0:
-                name, conf = identifier.identity(line.speaker - 1)
+            try:
+                speaker = int(line.speaker)  # numpy ints come from Sortformer argmax
+            except (TypeError, ValueError):
+                continue
+            if speaker > 0:
+                name, conf = identifier.identity(speaker - 1)
                 line.identity = {"speaker_name": name, "speaker_confidence": conf}
 
     async def _update_diarization_state(self, diarization_segments) -> None:

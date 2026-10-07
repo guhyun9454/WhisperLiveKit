@@ -5,10 +5,12 @@ across sessions: frames where exactly one slot is confident are cut into short p
 a speaker-verification model (TitaNet by default), and the running centroid per slot is matched
 against enrolled profiles. A name is accepted only if
 
-    best_score > threshold  AND  best_score - second_score > margin
+    speech >= min_speech_s  AND  best_score > threshold  AND  best_score - second_score > margin
 
-and is then locked for the rest of the session; until then the slot stays unknown (name None).
-Evaluated on 4 recurring meetings: 14/14 slots named correctly, 0 wrong, median 5 s of speech.
+Every new piece updates the slot's running centroid and the decision is re-evaluated, so a slot
+whose first seconds were polluted by another voice (diarization merges) can still settle on the
+right person. A name sticks until a different name passes the rule, and one name is held by at
+most one slot (the higher-scoring slot wins). Until then the slot stays unknown (name None).
 
 Profiles live in a directory, one JSON file per person:
     {"name": "...", "embeddings": [[...], ...], "model": "titanet_large"}
@@ -113,9 +115,9 @@ class SlotState:
     emb_sum: Optional[np.ndarray] = None
     n_pieces: int = 0
     speech_s: float = 0.0
-    name: Optional[str] = None       # locked name
-    score: Optional[float] = None    # latest best score (or the score at lock time)
-    second: Optional[str] = None
+    name: Optional[str] = None       # accepted name (sticky until another name passes the rule)
+    score: Optional[float] = None    # latest best score
+    best: Optional[str] = None       # latest best-scoring profile
 
 
 class SessionSpeakerIdentifier:
@@ -131,12 +133,14 @@ class SessionSpeakerIdentifier:
         off_prob: float = 0.3,
         min_piece_s: float = 1.5,
         max_piece_s: float = 6.0,
+        min_speech_s: float = 10.0,
         candidates: Optional[List[str]] = None,
     ):
         self.embedder, self.profiles = embedder, profiles
         self.threshold, self.margin = threshold, margin
         self.on_prob, self.off_prob = on_prob, off_prob
         self.min_piece_s, self.max_piece_s = min_piece_s, max_piece_s
+        self.min_speech_s = min_speech_s
         self.names, self.P = profiles.centroids(candidates)
         self.slots: Dict[int, SlotState] = {}
         self._lock = threading.Lock()
@@ -151,8 +155,6 @@ class SessionSpeakerIdentifier:
             frame = audio[int(f * hop): int((f + 1) * hop)]
             for k in range(preds.shape[1]):
                 st = self.slots.setdefault(k, SlotState())
-                if st.name is not None:
-                    continue  # locked: no more work for this slot
                 others = np.delete(preds[f], k)
                 if preds[f, k] > self.on_prob and (others.max() if len(others) else 0) < self.off_prob:
                     st.piece.append(frame)
@@ -175,11 +177,24 @@ class SessionSpeakerIdentifier:
             order = np.argsort(-sc)
             best = float(sc[order[0]])
             gap = best - (float(sc[order[1]]) if len(order) > 1 else -1.0)
-            st.score, st.second = best, self.names[order[0]]
-            if best > self.threshold and gap > self.margin:
-                st.name = self.names[order[0]]
-                logger.info("Speaker slot %d identified as %s (score %.3f, margin %.3f, %.1fs speech)",
-                            k, st.name, best, gap, st.speech_s)
+            st.score, st.best = best, self.names[order[0]]
+            if st.speech_s >= self.min_speech_s and best > self.threshold and gap > self.margin \
+                    and st.best != st.name:
+                self._assign(k, st, st.best, gap)
+
+    def _assign(self, k: int, st: SlotState, name: str, gap: float) -> None:
+        """Give `name` to slot k unless another slot holds it with a higher score."""
+        holder = next((j for j, s in self.slots.items() if j != k and s.name == name), None)
+        if holder is not None:
+            if (self.slots[holder].score or 0) >= (st.score or 0):
+                return
+            logger.info("Speaker slot %d loses %s to slot %d", holder, name, k)
+            self.slots[holder].name = None
+        if st.name:
+            logger.info("Speaker slot %d renamed %s -> %s", k, st.name, name)
+        st.name = name
+        logger.info("Speaker slot %d identified as %s (score %.3f, margin %.3f, %.1fs speech)",
+                    k, name, st.score, gap, st.speech_s)
 
     def identity(self, slot: int) -> tuple[Optional[str], Optional[float]]:
         """(name or None, confidence) for a 0-based Sortformer slot."""

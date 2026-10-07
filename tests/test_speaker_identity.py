@@ -53,15 +53,37 @@ def feed(ident, slot, level, seconds, n_slots=4):
     ident.process_chunk(np.zeros(int(0.8 * SR), dtype=np.float32), np.zeros((frames, n_slots), dtype=np.float32))
 
 
-def test_known_speaker_is_named_and_locked(profiles):
+def test_known_speaker_is_named_after_enough_speech(profiles):
     emb = FakeEmbedder({0.1: voice(0), 0.2: voice(1)})
     ident = SessionSpeakerIdentifier(emb, profiles)
     assert ident.identity(0) == (None, None)
     feed(ident, slot=0, level=0.1, seconds=4)
+    assert ident.identity(0)[0] is None  # below min_speech_s
+    feed(ident, slot=0, level=0.1, seconds=8)
     assert ident.identity(0)[0] == "Alice"
-    # later audio that sounds like Bob does not rename a locked slot
-    feed(ident, slot=0, level=0.2, seconds=8)
+    # a few seconds of another voice merged into the slot do not rename it
+    feed(ident, slot=0, level=0.2, seconds=4)
     assert ident.identity(0)[0] == "Alice"
+
+
+def test_merged_start_is_corrected_by_later_speech(profiles):
+    # diarization put Bob's voice first into this slot, then the real owner (Alice) talks
+    emb = FakeEmbedder({0.1: voice(0), 0.2: voice(1)})
+    ident = SessionSpeakerIdentifier(emb, profiles)
+    feed(ident, slot=1, level=0.2, seconds=11)
+    assert ident.identity(1)[0] == "Bob"
+    feed(ident, slot=1, level=0.1, seconds=40)
+    assert ident.identity(1)[0] == "Alice"
+
+
+def test_one_name_per_slot(profiles):
+    emb = FakeEmbedder({0.1: voice(0), 0.5: voice(0, mix=3)})
+    ident = SessionSpeakerIdentifier(emb, profiles, threshold=0.6)
+    feed(ident, slot=0, level=0.5, seconds=12)   # Alice-ish (0.71)
+    assert ident.identity(0)[0] == "Alice"
+    feed(ident, slot=1, level=0.1, seconds=12)   # clearly Alice (1.0) takes the name
+    assert ident.identity(1)[0] == "Alice"
+    assert ident.identity(0)[0] is None
 
 
 def test_ambiguous_match_stays_unknown(profiles):
