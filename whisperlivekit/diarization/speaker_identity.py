@@ -127,7 +127,7 @@ class SessionSpeakerIdentifier:
         self,
         embedder: SpeakerEmbeddingProvider,
         profiles: SpeakerProfiles,
-        threshold: float = 0.75,
+        threshold: float = 0.70,
         margin: float = 0.10,
         on_prob: float = 0.7,
         off_prob: float = 0.3,
@@ -213,7 +213,7 @@ class SessionSpeakerIdentifier:
 class SpeakerIdentityModel:
     """Shared across sessions: one embedding model + the profile directory."""
 
-    def __init__(self, profile_dir: str, threshold: float = 0.75, margin: float = 0.10,
+    def __init__(self, profile_dir: str, threshold: float = 0.70, margin: float = 0.10,
                  candidates: Optional[List[str]] = None, embedder: Optional[SpeakerEmbeddingProvider] = None):
         self.embedder = embedder or TitaNetEmbeddingProvider()
         self.profiles = SpeakerProfiles(profile_dir, model=self.embedder.name)

@@ -194,7 +194,7 @@ class WhisperLiveKitConfig:
     sortformer_max_speakers: Optional[int] = None
     # Persistent speaker identity: directory of enrolled profiles (None disables).
     speaker_profiles: Optional[str] = None
-    speaker_threshold: float = 0.75
+    speaker_threshold: float = 0.70
     speaker_margin: float = 0.10
     # Comma-separated names to restrict matching to (e.g. today's attendees).
     speaker_candidates: Optional[str] = None

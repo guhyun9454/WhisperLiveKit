@@ -81,8 +81,8 @@ def build_parser():
             "`python -m whisperlivekit.diarization.speaker_identity enroll DIR NAME audio.wav`."
         ),
     )
-    parser.add_argument("--speaker-threshold", type=float, default=0.75, dest="speaker_threshold",
-                        help="Minimum cosine score to name a speaker (default 0.75).")
+    parser.add_argument("--speaker-threshold", type=float, default=0.70, dest="speaker_threshold",
+                        help="Minimum cosine score to name a speaker (default 0.70).")
     parser.add_argument("--speaker-margin", type=float, default=0.10, dest="speaker_margin",
                         help="Required gap between best and second-best profile (default 0.10).")
     parser.add_argument("--speaker-candidates", type=str, default=None, dest="speaker_candidates",
