@@ -297,7 +297,8 @@ class TranscriptionEngine:
                 )
             elif config.diarization_backend == "sortformer":
                 from whisperlivekit.diarization.sortformer_backend import SortformerDiarization
-                self.diarization_model = SortformerDiarization(model_path=config.sortformer_model_path)
+                self.diarization_model = SortformerDiarization(
+                    model_path=config.sortformer_model_path, device=config.diarization_device)
                 self.diarization_model.speaker_identity = None
                 if config.speaker_profiles:
                     from whisperlivekit.diarization.speaker_identity import SpeakerIdentityModel
@@ -307,6 +308,7 @@ class TranscriptionEngine:
                         margin=config.speaker_margin,
                         candidates=[c.strip() for c in config.speaker_candidates.split(",")]
                         if config.speaker_candidates else None,
+                        device=config.diarization_device,
                     )
 
         self.translation_model = None

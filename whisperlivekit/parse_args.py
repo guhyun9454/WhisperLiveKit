@@ -69,6 +69,15 @@ def build_parser():
         dest="sortformer_model_path",
         help="Path to a local Sortformer .nemo file, a directory containing exactly one .nemo file, or a NeMo/Hugging Face model ID.",
     )
+    parser.add_argument(
+        "--diarization-device",
+        type=str,
+        default=None,
+        choices=["cuda", "mps", "cpu"],
+        dest="diarization_device",
+        help="Device for Sortformer and speaker-identity models (default: cuda if available, else cpu). "
+             "Use 'mps' on Apple Silicon; set PYTORCH_ENABLE_MPS_FALLBACK=1 if an op is missing on MPS.",
+    )
 
     parser.add_argument(
         "--speaker-profiles",

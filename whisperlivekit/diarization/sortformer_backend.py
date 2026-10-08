@@ -56,6 +56,7 @@ class SortformerDiarization:
         self,
         model_name: str = "nvidia/diar_streaming_sortformer_4spk-v2",
         model_path: Optional[str] = None,
+        device: Optional[str] = None,
     ):
         """
         Stores the shared streaming Sortformer diarization model. Used when a new online_diarization is initialized.
@@ -63,9 +64,9 @@ class SortformerDiarization:
         """
         if model_path:
             logger.info("Loading Sortformer from local path %s (overrides model %s)", model_path, model_name)
-        self._load_model(model_path or model_name)
+        self._load_model(model_path or model_name, device)
 
-    def _load_model(self, model_name: str):
+    def _load_model(self, model_name: str, device: Optional[str] = None):
         """Load and configure the Sortformer model for streaming."""
         try:
             full_path = Path(model_name).expanduser()
@@ -107,7 +108,7 @@ class SortformerDiarization:
 
             self.diar_model.eval()
 
-            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            device = torch.device(device or ("cuda" if torch.cuda.is_available() else "cpu"))
             self.diar_model.to(device)
 
             ## to test

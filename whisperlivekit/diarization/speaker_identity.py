@@ -220,8 +220,9 @@ class SpeakerIdentityModel:
     """
 
     def __init__(self, profile_dir: str, threshold: float = 0.70, margin: float = 0.10,
-                 candidates: Optional[List[str]] = None, embedder: Optional[SpeakerEmbeddingProvider] = None):
-        self.embedder = embedder or TitaNetEmbeddingProvider()
+                 candidates: Optional[List[str]] = None, embedder: Optional[SpeakerEmbeddingProvider] = None,
+                 device: Optional[str] = None):
+        self.embedder = embedder or TitaNetEmbeddingProvider(device=device)
         self.root = pathlib.Path(profile_dir)
         self.threshold, self.margin, self.candidates = threshold, margin, candidates
 

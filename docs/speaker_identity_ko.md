@@ -80,7 +80,26 @@ wlk --model base --lan ko \
 
 결과 JSON의 각 line에는 `speaker_name`(판정 전에는 `null`)과 `speaker_confidence`가 추가됩니다.
 
-## 6. 참고 사항
+## 6. 속도가 느릴 때
+
+녹음 중 화면 위쪽의 지연 값으로 어느 단계가 느린지 확인합니다.
+
+| 계속 커지는 값 | 원인 | 조치 |
+|---|---|---|
+| Compute | Whisper 전사가 느림 | `--min-chunk-size 1.0`으로 전사 호출 횟수를 줄이거나, `--model small`로 낮춤 |
+| Diarization | Sortformer가 CPU에서 느림 | `--diarization-device mps`로 맥 GPU 사용 |
+
+```bash
+PYTORCH_ENABLE_MPS_FALLBACK=1 wlk --model large-v3-turbo --lan ko \
+    --min-chunk-size 1.0 \
+    --diarization --diarization-device mps \
+    --speaker-profiles ~/wlk-profiles
+```
+
+- `--diarization-device mps`는 Sortformer와 TitaNet을 맥 GPU에서 실행합니다. 맥에서는 아직 시험하지 않았습니다. 시작할 때 오류가 나면 이 옵션을 빼고 실행하세요.
+- `PYTORCH_ENABLE_MPS_FALLBACK=1`은 MPS에서 지원하지 않는 연산만 CPU로 처리하게 합니다.
+
+## 7. 참고 사항
 
 - **맥 실행 속도는 아직 확인하지 않았습니다.** 실시간 검증은 CUDA GPU(RTX A2000)에서만 했습니다. Sortformer를 CPU로 실행하면 실시간보다 느릴 수 있습니다. 화면 상단의 diarization lag 값이 계속 커지면 CPU 속도가 부족한 상태입니다.
 - Sortformer는 화자를 최대 4명까지만 구분합니다. 5명 이상 회의에서는 두 사람이 한 화자로 합쳐질 수 있고, 그러면 한 사람 이름이 다른 사람 발화에도 표시됩니다.
