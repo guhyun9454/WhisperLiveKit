@@ -170,6 +170,15 @@ function populateMicrophoneSelect() {
   }
 }
 
+// Chrome's echo cancellation removes whatever the computer is playing, which is exactly the
+// remote participants when capturing a meeting through a loopback device (BlackHole etc.).
+// ASR and diarization also work better on unprocessed audio.
+function micConstraints() {
+  const audio = { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
+  if (selectedMicrophoneId) audio.deviceId = { exact: selectedMicrophoneId };
+  return { audio };
+}
+
 function handleMicrophoneChange() {
   selectedMicrophoneId = microphoneSelect.value || null;
   localStorage.setItem('selectedMicrophone', selectedMicrophoneId || '');
@@ -720,17 +729,11 @@ async function startRecording() {
         statusText.textContent = "Using tab audio capture.";
       } catch (tabError) {
         console.log('Tab capture not available, falling back to microphone', tabError);
-        const audioConstraints = selectedMicrophoneId
-          ? { audio: { deviceId: { exact: selectedMicrophoneId } } }
-          : { audio: true };
-        stream = await navigator.mediaDevices.getUserMedia(audioConstraints);
+        stream = await navigator.mediaDevices.getUserMedia(micConstraints());
         statusText.textContent = "Using microphone audio.";
       }
     } else if (isWebContext) {
-      const audioConstraints = selectedMicrophoneId 
-        ? { audio: { deviceId: { exact: selectedMicrophoneId } } }
-        : { audio: true };
-      stream = await navigator.mediaDevices.getUserMedia(audioConstraints);
+      stream = await navigator.mediaDevices.getUserMedia(micConstraints());
     }
 
     mediaStream = stream;
