@@ -521,7 +521,7 @@ def online_factory(args, asr, language=None, context=None):
     return OnlineASRProcessor(asr)
 
 
-def online_diarization_factory(args, diarization_backend):
+def online_diarization_factory(args, diarization_backend, speaker_group=None):
     if args.diarization_backend == "diart":
         online = diarization_backend
         # Not the best here, since several user/instances will share the same backend, but diart is not SOTA anymore and sortformer is recommended
@@ -531,7 +531,7 @@ def online_diarization_factory(args, diarization_backend):
         online = SortformerDiarizationOnline(
             shared_model=diarization_backend,
             max_speakers=getattr(args, "sortformer_max_speakers", None),
-            identifier=identity.new_session() if identity else None,
+            identifier=identity.new_session(speaker_group) if identity else None,
         )
     else:
         raise ValueError(f"Unknown diarization backend: {args.diarization_backend}")

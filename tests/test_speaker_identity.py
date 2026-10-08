@@ -130,3 +130,19 @@ def test_output_fields_only_when_enabled():
     line.identity = {"speaker_name": "Alice", "speaker_confidence": 0.91}
     d = line.to_dict()
     assert d["speaker"] == 2 and d["speaker_name"] == "Alice" and d["speaker_confidence"] == 0.91
+
+
+def test_profile_groups_are_chosen_per_session(tmp_path):
+    from whisperlivekit.diarization.speaker_identity import SpeakerIdentityModel
+
+    SpeakerProfiles(tmp_path / "lab", model="fake").add("Alice", np.stack([voice(0)]))
+    SpeakerProfiles(tmp_path / "company", model="fake").add("Bob", np.stack([voice(1)]))
+    model = SpeakerIdentityModel(str(tmp_path), embedder=FakeEmbedder({0.1: voice(0), 0.2: voice(1)}))
+
+    assert model.groups() == {"company": ["Bob"], "lab": ["Alice"]}
+    assert model.new_session("lab").names == ["Alice"]
+    assert model.new_session("company").names == ["Bob"]
+    assert model.new_session().names == []  # no profiles directly in the root
+    for bad in ("nope", "../lab"):
+        with pytest.raises(ValueError):
+            model.new_session(bad)

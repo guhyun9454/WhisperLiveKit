@@ -62,6 +62,8 @@ const linesTranscriptDiv = document.getElementById("linesTranscript");
 const timerElement = document.querySelector(".timer");
 const themeRadios = document.querySelectorAll('input[name="theme"]');
 const microphoneSelect = document.getElementById("microphoneSelect");
+const speakerGroupField = document.getElementById("speakerGroupField");
+const speakerGroupSelect = document.getElementById("speakerGroupSelect");
 
 const settingsToggle = document.getElementById("settingsToggle");
 const settingsDiv = document.querySelector(".settings");
@@ -227,12 +229,59 @@ websocketInput.addEventListener("change", () => {
   }
   websocketUrl = urlValue;
   statusText.textContent = "WebSocket URL updated. Ready to connect.";
+  loadSpeakerGroups();
 });
+
+// Speaker profile groups (server started with --speaker-profiles DIR, one subdirectory per group).
+// The chosen group is sent as ?speaker_group= when the session starts.
+async function loadSpeakerGroups() {
+  if (!speakerGroupSelect) return;
+  let groups = {};
+  try {
+    const url = new URL(websocketUrl);
+    url.protocol = url.protocol === "wss:" ? "https:" : "http:";
+    url.pathname = url.pathname.replace(/\/asr$/, "/speaker-groups");
+    const res = await fetch(url);
+    if (res.ok) groups = (await res.json()).groups || {};
+  } catch (e) {
+    console.warn("Could not load speaker profile groups:", e);
+  }
+  const names = Object.keys(groups);
+  speakerGroupField.style.display = names.length ? "" : "none";
+  speakerGroupSelect.innerHTML = '<option value="">None</option>';
+  names.forEach((g) => {
+    const option = document.createElement("option");
+    option.value = g;
+    option.textContent = `${g} (${groups[g].length})`;
+    option.title = groups[g].join(", ");
+    speakerGroupSelect.appendChild(option);
+  });
+  const saved = localStorage.getItem("speakerGroup");
+  speakerGroupSelect.value = saved !== null && (saved === "" || names.includes(saved)) ? saved : (names[0] || "");
+}
+
+if (speakerGroupSelect) {
+  speakerGroupSelect.addEventListener("change", () => {
+    localStorage.setItem("speakerGroup", speakerGroupSelect.value);
+    statusText.textContent = speakerGroupSelect.value
+      ? `Speaker profiles: ${speakerGroupSelect.value} (applies to the next recording)`
+      : "Speaker profiles off";
+  });
+  loadSpeakerGroups();
+}
+
+function sessionWebSocketUrl() {
+  const group = speakerGroupSelect && speakerGroupField.style.display !== "none" ? speakerGroupSelect.value : "";
+  if (!group) return websocketUrl;
+  const url = new URL(websocketUrl);
+  url.searchParams.set("speaker_group", group);
+  return url.toString();
+}
 
 function setupWebSocket() {
   return new Promise((resolve, reject) => {
     try {
-      websocket = new WebSocket(websocketUrl);
+      websocket = new WebSocket(sessionWebSocketUrl());
     } catch (error) {
       statusText.textContent = "Invalid WebSocket URL. Please check and try again.";
       reject(error);

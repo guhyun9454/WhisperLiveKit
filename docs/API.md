@@ -494,7 +494,7 @@ Each element in `lines` has the following shape:
 | Field               | Type   | Presence    | Description |
 |---------------------|--------|-------------|-------------|
 | `speaker`           | int    | Always      | Speaker ID. Normally `1`, `2`, `3`, etc. The special value `-2` indicates a silence segment. When diarization is disabled, defaults to `1`. |
-| `speaker_name`      | string \| null | With `--speaker-profiles` | Enrolled person this session speaker was matched to, or `null` while unknown. Once set it stays fixed for the session. |
+| `speaker_name`      | string \| null | With `--speaker-profiles` | Enrolled person this session speaker was matched to, or `null` while unknown. Re-evaluated as more speech arrives; a name changes only when another person passes the threshold. |
 | `speaker_confidence`| float \| null  | With `--speaker-profiles` | Cosine score of the best profile match (`null` before enough speech). |
 | `text`              | string | Always      | The transcribed text for this segment. `null` for silence segments. |
 | `start`             | string | Always      | Start timestamp formatted as `H:MM:SS` (e.g. `"0:00:03"`). |
@@ -674,6 +674,12 @@ or end of input is received; an in-progress pause is not added to `lines`. The
 native `/asr` WebSocket uses the server-wide setting. The
 Deepgram-compatible `/v1/listen` endpoint instead keeps its per-session
 `endpointing` timer separate from these native output lines.
+
+---
+
+## Per-Session Speaker Profile Group
+
+With `--speaker-profiles DIR`, each subdirectory of `DIR` is a profile group (e.g. `DIR/team-a/*.json`). A client picks one with `ws://host:port/asr?speaker_group=team-a`; without it, only the JSON files directly in `DIR` are used. `GET /speaker-groups` lists the groups and their people (`{"groups": {"team-a": ["Alice", "Bob"]}}`), and the web UI shows them as a dropdown in its settings. An unknown group closes the WebSocket with an error.
 
 ---
 

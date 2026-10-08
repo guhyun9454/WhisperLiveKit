@@ -108,6 +108,7 @@ async def websocket_endpoint(websocket: WebSocket):
     mode = websocket.query_params.get("mode", "full")
     session_target_language = websocket.query_params.get("target_language", None)
     session_context = websocket.query_params.get("context", None)
+    session_speaker_group = websocket.query_params.get("speaker_group") or None
 
     try:
         audio_processor = AudioProcessor(
@@ -116,6 +117,7 @@ async def websocket_endpoint(websocket: WebSocket):
             mode=mode,
             target_language=session_target_language,
             context=session_context,
+            speaker_group=session_speaker_group,
         )
     except ValueError as e:
         # Bad per-session parameters (e.g. a language the backend does not
@@ -610,6 +612,16 @@ async def create_transcription(
     if isinstance(result, str):
         return PlainTextResponse(result)
     return JSONResponse(result)
+
+
+@router.get("/speaker-groups")
+async def speaker_groups(request: Request):
+    """Speaker profile groups the client can pick with ?speaker_group= (empty without --speaker-profiles)."""
+    if not _token_ok(_bearer_token(request) or request.query_params.get("token"), request):
+        return JSONResponse({"error": "invalid or missing API token"}, status_code=401)
+    _, transcription_engine = _session_settings(request)
+    identity = getattr(getattr(transcription_engine, "diarization_model", None), "speaker_identity", None)
+    return JSONResponse({"groups": identity.groups() if identity else {}})
 
 
 @router.get("/v1/models")

@@ -89,6 +89,7 @@ class AudioProcessor:
         # "diff" clients keep their own copy and allow bounded server memory.
         session_mode = kwargs.pop('mode', 'full')
         session_target_language = kwargs.pop('target_language', None)
+        session_speaker_group = kwargs.pop('speaker_group', None)
 
         if 'transcription_engine' in kwargs and isinstance(kwargs['transcription_engine'], TranscriptionEngine):
             models = kwargs['transcription_engine']
@@ -194,7 +195,8 @@ class AudioProcessor:
             )
             self.sep = self.transcription.asr.sep
         if self.args.diarization:
-            self.diarization = online_diarization_factory(self.args, models.diarization_model)
+            self.diarization = online_diarization_factory(
+                self.args, models.diarization_model, session_speaker_group)
         if models.translation_model:
             if session_language or session_target_language:
                 from whisperlivekit.translation import session_translation_factory

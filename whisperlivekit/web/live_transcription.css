@@ -570,7 +570,8 @@ label {
   }
   
   #websocketInput,
-  #microphoneSelect {
+  #microphoneSelect,
+  #speakerGroupSelect {
     min-width: 100px;
     max-width: 160px;
   }

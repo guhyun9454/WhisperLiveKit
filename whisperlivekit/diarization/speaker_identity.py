@@ -14,9 +14,11 @@ most one slot (the higher-scoring slot wins). Until then the slot stays unknown 
 
 Profiles live in a directory, one JSON file per person:
     {"name": "...", "embeddings": [[...], ...], "model": "titanet_large"}
+Subdirectories are groups the client can choose per session (`?speaker_group=` on /asr):
+    profiles/OOD-VIL/*.json, profiles/company/*.json
 
 Enroll from audio:
-    python -m whisperlivekit.diarization.speaker_identity enroll PROFILE_DIR NAME a.wav [b.wav ...]
+    python -m whisperlivekit.diarization.speaker_identity enroll PROFILE_DIR[/GROUP] NAME a.wav [b.wav ...]
 """
 from __future__ import annotations
 
@@ -211,17 +213,31 @@ class SessionSpeakerIdentifier:
 
 
 class SpeakerIdentityModel:
-    """Shared across sessions: one embedding model + the profile directory."""
+    """Shared across sessions: one embedding model + the profile directory.
+
+    Subdirectories of the profile directory are groups (e.g. one per team); a session picks one
+    with `new_session(group)`. Without a group, the JSON files directly in the directory are used.
+    """
 
     def __init__(self, profile_dir: str, threshold: float = 0.70, margin: float = 0.10,
                  candidates: Optional[List[str]] = None, embedder: Optional[SpeakerEmbeddingProvider] = None):
         self.embedder = embedder or TitaNetEmbeddingProvider()
-        self.profiles = SpeakerProfiles(profile_dir, model=self.embedder.name)
+        self.root = pathlib.Path(profile_dir)
         self.threshold, self.margin, self.candidates = threshold, margin, candidates
 
-    def new_session(self) -> SessionSpeakerIdentifier:
-        self.profiles.reload()  # pick up people enrolled since the last session
-        return SessionSpeakerIdentifier(self.embedder, self.profiles, self.threshold, self.margin,
+    def groups(self) -> Dict[str, List[str]]:
+        """{group: [names]} for every subdirectory holding profiles."""
+        if not self.root.is_dir():
+            return {}
+        return {d.name: sorted(json.loads(f.read_text(encoding="utf-8"))["name"] for f in d.glob("*.json"))
+                for d in sorted(self.root.iterdir()) if d.is_dir() and any(d.glob("*.json"))}
+
+    def new_session(self, group: Optional[str] = None) -> SessionSpeakerIdentifier:
+        if group and group not in self.groups():  # also rejects path tricks like "../x"
+            raise ValueError(f"Unknown speaker profile group {group!r}; available: {sorted(self.groups())}")
+        # Read from disk per session, so people enrolled since the last session are picked up.
+        profiles = SpeakerProfiles(self.root / group if group else self.root, model=self.embedder.name)
+        return SessionSpeakerIdentifier(self.embedder, profiles, self.threshold, self.margin,
                                         candidates=self.candidates)
 
 
