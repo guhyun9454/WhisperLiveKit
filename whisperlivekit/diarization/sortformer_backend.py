@@ -7,6 +7,7 @@ from typing import List, Optional
 import numpy as np
 import torch
 
+from whisperlivekit.backend_support import torch_device
 from whisperlivekit.timed_objects import SpeakerSegment
 
 logger = logging.getLogger(__name__)
@@ -108,7 +109,7 @@ class SortformerDiarization:
 
             self.diar_model.eval()
 
-            device = torch.device(device or ("cuda" if torch.cuda.is_available() else "cpu"))
+            device = torch.device(torch_device(device))
             self.diar_model.to(device)
 
             ## to test

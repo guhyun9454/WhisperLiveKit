@@ -1,6 +1,10 @@
 """Public API. Model and audio dependencies load when their API is requested."""
 
+import os
 from importlib import import_module
+
+# Ops missing on Apple GPU (MPS) run on CPU instead of failing; must be set before torch loads.
+os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
 
 from .config import WhisperLiveKitConfig
 from .parse_args import parse_args

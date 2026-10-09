@@ -9,7 +9,7 @@ from typing import List, Optional, Tuple
 import numpy as np
 import torch
 
-from whisperlivekit.backend_support import faster_backend_available, mlx_backend_available
+from whisperlivekit.backend_support import faster_backend_available, mlx_backend_available, torch_device
 from whisperlivekit.model_paths import detect_model_format, resolve_model_path
 from whisperlivekit.simul_whisper.config import AlignAttConfig
 from whisperlivekit.simul_whisper.simul_whisper import AlignAtt
@@ -540,6 +540,7 @@ class SimulStreamingASR:
             decoder_only=self.fast_encoder,
             custom_alignment_heads=self.custom_alignment_heads,
             lora_path=lora_path,
+            device=torch_device(),
         )
         warmup_audio = load_file(self.warmup_file)
         if warmup_audio is not None:

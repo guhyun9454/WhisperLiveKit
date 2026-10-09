@@ -33,6 +33,8 @@ from typing import Dict, List, Optional, Protocol
 
 import numpy as np
 
+from whisperlivekit.backend_support import torch_device
+
 logger = logging.getLogger(__name__)
 
 SAMPLE_RATE = 16000
@@ -58,7 +60,7 @@ class TitaNetEmbeddingProvider:
 
         self._torch = torch
         self.model = EncDecSpeakerLabelModel.from_pretrained(model_name).eval()
-        self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = torch_device(device)
         self.model.to(self.device)
         self._lock = threading.Lock()  # one model shared by all sessions
 

@@ -5,6 +5,18 @@ import platform
 logger = logging.getLogger(__name__)
 
 
+def torch_device(preferred=None):
+    """Device for PyTorch models: the given one, else CUDA, else Apple GPU (MPS), else CPU."""
+    if preferred:
+        return preferred
+    import torch
+    if torch.cuda.is_available():
+        return "cuda"
+    if torch.backends.mps.is_available():
+        return "mps"
+    return "cpu"
+
+
 def module_available(module_name):
     """Return True if the given module can be imported."""
     return importlib.util.find_spec(module_name) is not None

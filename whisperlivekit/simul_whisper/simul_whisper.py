@@ -130,7 +130,7 @@ class AlignAtt(AlignAttBase):
         if USE_MLCORE:
             self.coreml_encoder_tuple = load_coreml_encoder()
         self.use_mlcore = self.coreml_encoder_tuple is not None
-        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        self.device = str(loaded_model.device)  # decoder runs where its weights were loaded
 
         # Common init (sets self.model, self.cfg, decode_options, etc.)
         self._base_init(cfg, loaded_model)

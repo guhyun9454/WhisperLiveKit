@@ -75,8 +75,7 @@ def build_parser():
         default=None,
         choices=["cuda", "mps", "cpu"],
         dest="diarization_device",
-        help="Device for Sortformer and speaker-identity models (default: cuda if available, else cpu). "
-             "Use 'mps' on Apple Silicon; set PYTORCH_ENABLE_MPS_FALLBACK=1 if an op is missing on MPS.",
+        help="Device for Sortformer and speaker-identity models (default: cuda, else Apple GPU (mps), else cpu).",
     )
 
     parser.add_argument(
