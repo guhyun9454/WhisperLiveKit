@@ -57,7 +57,7 @@ profile 파일에는 목소리 임베딩이 포함됩니다. git 저장소에 �
 ```bash
 OMP_NUM_THREADS=2 wlk --model large-v3-turbo --lan ko \
     --backend mlx-whisper --backend-policy utterance \
-    --diarization --speaker-profiles ~/wlk-profiles
+    --diarization --speaker-profiles ~/wlk-profiles --pcm-input
 ```
 
 브라우저에서 `http://localhost:8000`을 엽니다.
@@ -65,6 +65,7 @@ OMP_NUM_THREADS=2 wlk --model large-v3-turbo --lan ko \
 - `--backend-policy utterance`는 말이 끊길 때까지 모은 발화를 한 번에 전사합니다. 말하는 중에는 글자가 나오지 않고, 발화가 끝나고 1~4초 뒤에 표시됩니다.
 - 글자가 더 빨리 나오길 원하면 `--utterance-min-s 4`를 추가합니다. 정확도는 조금 낮아집니다.
 - `OMP_NUM_THREADS=2`는 화자 분리(CPU)가 Whisper와 CPU를 다투지 않게 합니다.
+- `--pcm-input`은 브라우저가 소리를 PCM으로 바로 보내게 합니다. 이 옵션을 쓰면 서버에 ffmpeg가 없어도 됩니다.
 
 ## 4. 웹에서 그룹 선택
 
