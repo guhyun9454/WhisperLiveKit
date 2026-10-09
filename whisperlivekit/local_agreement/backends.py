@@ -197,6 +197,10 @@ class MLXWhisper(ASRBase):
             word_timestamps=True,
             condition_on_previous_text=True,
             path_or_hf_repo=self.model_size_or_path,
+            # No temperature fallback: on a repetition loop mlx-whisper re-decodes at
+            # T=0.2..1.0, which took 28-39 s per call on an M2; LocalAgreement already
+            # discards unstable output, so one greedy pass is enough.
+            temperature=0.0,
         )
         return segments.get("segments", [])
 
