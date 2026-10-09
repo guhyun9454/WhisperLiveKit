@@ -154,6 +154,29 @@ class FasterWhisperASR(ASRBase):
     def use_vad(self):
         self.transcribe_kargs["vad_filter"] = True
 
+class _ReusedEncoder:
+    """mlx-whisper runs the encoder once for decoding and again for word timestamps
+    (find_alignment) on the same mel; reuse the last result. ~35% less time per call."""
+
+    def __init__(self, encoder):
+        self.encoder, self.key, self.out = encoder, None, None
+
+    def __call__(self, mel):
+        import hashlib
+
+        import mlx.core as mx
+        a = np.asarray(mel.astype(mx.float16))
+        key = (a.shape, hashlib.blake2b(a.tobytes(), digest_size=16).digest())
+        if key != self.key:
+            self.out = self.encoder(mel)
+            mx.eval(self.out)
+            self.key = key
+        return self.out
+
+    def __getattr__(self, name):
+        return getattr(self.encoder, name)
+
+
 class MLXWhisper(ASRBase):
     """
     Uses MLX Whisper optimized for Apple Silicon.
@@ -176,7 +199,9 @@ class MLXWhisper(ASRBase):
 
         self.model_size_or_path = model_size_or_path
         dtype = mx.float16
-        ModelHolder.get_model(model_size_or_path, dtype)
+        model = ModelHolder.get_model(model_size_or_path, dtype)
+        if not isinstance(model.encoder, _ReusedEncoder):
+            model.encoder = _ReusedEncoder(model.encoder)
         return transcribe
 
     def translate_model_name(self, model_name):
@@ -201,6 +226,9 @@ class MLXWhisper(ASRBase):
             # T=0.2..1.0, which took 28-39 s per call on an M2; LocalAgreement already
             # discards unstable output, so one greedy pass is enough.
             temperature=0.0,
+            # A prompt-induced repetition loop ran to the 224-token limit (16-31 s per call);
+            # real speech stays well under ~20 tokens/s.
+            sample_len=min(224, 32 + int(20 * len(audio) / 16000)),
         )
         return segments.get("segments", [])
 
