@@ -1,0 +1,67 @@
+"""Utterance policy: each pause-delimited utterance is transcribed once, with correct absolute times."""
+import numpy as np
+
+from whisperlivekit.local_agreement.online_asr import UtteranceASRProcessor
+from whisperlivekit.timed_objects import ASRToken
+
+SR = 16000
+
+
+class FakeASR:
+    """One word per second of non-silent audio, named by its level."""
+    sep = " "
+    tokenizer = None
+    confidence_validation = False
+    buffer_trimming = "segment"
+    buffer_trimming_sec = 15
+
+    def __init__(self):
+        self.calls = []
+
+    def transcribe(self, audio, init_prompt=""):
+        self.calls.append(len(audio) / SR)
+        return [(i, round(float(audio[i * SR]), 2)) for i in range(len(audio) // SR) if audio[i * SR] > 0]
+
+    def ts_words(self, res):
+        return [ASRToken(i, i + 0.8, f"w{level}") for i, level in res]
+
+
+def speech(seconds, level=0.5):
+    return np.full(int(seconds * SR), level, dtype=np.float32)
+
+
+def test_short_pauses_batch_until_min_length_then_one_call():
+    asr = FakeASR()
+    p = UtteranceASRProcessor(asr)
+    p.insert_audio_chunk(speech(3))
+    assert p.start_silence() == ([], 0.0)          # 3 s < MIN_S: keep collecting
+    p.end_silence(0.5, 0)
+    p.insert_audio_chunk(speech(4))
+    tokens, upto = p.start_silence()                # 7.5 s buffered: transcribe once
+    assert asr.calls == [7.5] and upto == 7.5
+    assert [t.start for t in tokens] == [0, 1, 2, 4, 5, 6]  # 3.0-3.5 s is the inserted pause
+
+
+def test_long_pause_keeps_audio_and_shifts_time():
+    asr = FakeASR()
+    p = UtteranceASRProcessor(asr)
+    p.insert_audio_chunk(speech(2))
+    p.start_silence()
+    p.end_silence(10, 0)                            # parent would drop these 2 s
+    p.insert_audio_chunk(speech(2, 0.7))
+    tokens, _ = p.process_iter()
+    assert [t.start for t in tokens] == [0, 1]
+    tokens, upto = p.finish()
+    assert [(t.start, t.text) for t in tokens] == [(12, "w0.7"), (13, "w0.7")] and upto == 14
+
+
+def test_monologue_is_cut_at_max_length_without_losing_words():
+    asr = FakeASR()
+    p = UtteranceASRProcessor(asr)
+    p.insert_audio_chunk(speech(16))
+    tokens, upto = p.process_iter()
+    assert [t.start for t in tokens] == list(range(14))   # last 1.5 s held back
+    assert upto == tokens[-1].end
+    p.insert_audio_chunk(speech(2))
+    rest, _ = p.finish()
+    assert [t.start for t in rest][0] >= 14 - 0.2 and len(asr.calls) == 2

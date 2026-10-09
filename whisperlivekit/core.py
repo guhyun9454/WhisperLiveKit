@@ -514,12 +514,16 @@ def online_factory(args, asr, language=None, context=None):
     if getattr(args, "backend_policy", None) == "simulstreaming":
         from whisperlivekit.simul_whisper import SimulStreamingOnlineProcessor
         return SimulStreamingOnlineProcessor(asr)
+    policy = getattr(args, "backend_policy", None)
     if not isinstance(asr, SessionASRProxy):
         # Every shared LocalAgreement backend participates in the same lock,
         # including sessions that use the server-wide language. Otherwise a
         # plain session could race with a language-overriding proxy and observe
         # its temporary ``original_language`` value.
         asr = SessionASRProxy(asr)
+    if policy == "utterance":
+        from whisperlivekit.local_agreement.online_asr import UtteranceASRProcessor
+        return UtteranceASRProcessor(asr)
     return OnlineASRProcessor(asr)
 
 

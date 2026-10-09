@@ -272,8 +272,9 @@ def build_parser():
         "--backend-policy",
         type=str,
         default="simulstreaming",
-        choices=["1", "2", "simulstreaming", "localagreement"],
-        help="Select the streaming policy: 1 or 'simulstreaming' for AlignAtt, 2 or 'localagreement' for LocalAgreement.",
+        choices=["1", "2", "simulstreaming", "localagreement", "utterance"],
+        help="Select the streaming policy: 1 or 'simulstreaming' for AlignAtt, 2 or 'localagreement' for LocalAgreement, "
+             "'utterance' to transcribe each pause-delimited utterance once (slow GPUs with large models; no partial text).",
     )
     parser.add_argument(
         "--backend",

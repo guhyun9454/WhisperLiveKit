@@ -425,3 +425,86 @@ class OnlineASRProcessor:
             start = None
             end = None
         return Transcript(start, end, text)
+
+
+class UtteranceASRProcessor(OnlineASRProcessor):
+    """Transcribe each utterance once instead of re-transcribing a growing buffer.
+
+    LocalAgreement re-runs the model on the same audio until two passes agree; with
+    large-v3-turbo on an M2 one call costs ~3 s (the encoder always sees a padded 30 s
+    window), so that never kept up with real time. Here audio is collected until a pause
+    once at least MIN_S has accumulated (or MAX_S is reached), then transcribed once and
+    committed. Cost is ~one encoder pass per 6-15 s of speech; text appears when the
+    utterance ends, with no partial hypothesis.
+    """
+
+    MIN_S = 6.0    # VAD reports a pause every ~2 s in meetings; batching them keeps calls rare
+    MAX_S = 15.0   # cut long monologues; the last CUT_KEEP_S stay buffered so words aren't split
+    CUT_KEEP_S = 1.5
+
+    def init(self, offset: Optional[float] = None):
+        committed = getattr(self, "committed", [])
+        super().init(offset)
+        self.committed = committed  # keep history for the prompt across utterances
+        self._queued: List[Tuple[float, np.ndarray]] = []
+
+    def _buffer_s(self) -> float:
+        return len(self.audio_buffer) / self.SAMPLING_RATE
+
+    def _queue_buffer(self):
+        if self.audio_buffer.size:
+            self._queued.append((self.buffer_time_offset, self.audio_buffer))
+            self.buffer_time_offset = self.get_audio_buffer_end_time()
+            self.audio_buffer = np.array([], dtype=np.float32)
+
+    def _transcribe(self, offset: float, audio: np.ndarray) -> List[ASRToken]:
+        prompt = self.asr.sep.join(t.text for t in self.committed[-40:])[-200:]
+        tokens = [t.with_offset(offset) for t in self.asr.ts_words(self.asr.transcribe(audio, init_prompt=prompt))]
+        self.committed.extend(tokens)
+        return tokens
+
+    def _drain(self) -> List[ASRToken]:
+        tokens = []
+        while self._queued:
+            tokens += self._transcribe(*self._queued.pop(0))
+        return tokens
+
+    def process_iter(self) -> Tuple[List[ASRToken], float]:
+        tokens = self._drain()
+        if self._buffer_s() >= self.MAX_S:
+            end = self.get_audio_buffer_end_time()
+            cut_tokens = self._transcribe(self.buffer_time_offset, self.audio_buffer)
+            keep = [t for t in cut_tokens if t.end <= end - self.CUT_KEEP_S] or cut_tokens
+            del self.committed[len(self.committed) - len(cut_tokens) + len(keep):]
+            cut_at = keep[-1].end if keep else end
+            self.audio_buffer = self.audio_buffer[int((cut_at - self.buffer_time_offset) * self.SAMPLING_RATE):]
+            self.buffer_time_offset = cut_at
+            tokens += keep
+        return tokens, self.buffer_time_offset
+
+    def start_silence(self):
+        if self._buffer_s() >= self.MIN_S:
+            self._queue_buffer()
+        return self.process_iter()
+
+    def end_silence(self, silence_duration: Optional[float], offset: float):
+        if silence_duration and silence_duration >= 5:
+            # The parent drops the buffer and re-anchors on the last *emitted* token, which
+            # lags here; queue the audio and continue from where it ended instead.
+            self._queue_buffer()
+            self.buffer_time_offset += silence_duration
+            self.global_time_offset += silence_duration
+        else:
+            super().end_silence(silence_duration, offset)
+
+    def new_speaker(self, change_speaker) -> Tuple[List[ASRToken], float]:
+        self._queue_buffer()
+        return self.process_iter()
+
+    def get_buffer(self):
+        return self.concatenate_tokens([])
+
+    def finish(self) -> Tuple[List[ASRToken], float]:
+        self._queue_buffer()
+        tokens = self._drain()
+        return tokens, self.buffer_time_offset
