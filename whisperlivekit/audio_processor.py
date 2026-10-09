@@ -459,10 +459,12 @@ class AudioProcessor:
             if getattr(getattr(self, "args", None), "transcription", True):
                 audio_received_end = self.total_pcm_samples / self.sample_rate if self.sample_rate else 0.0
                 processed_end = max(0.0, self.state.end_transcription_processed)
+                speech_end = processed_end
                 silence = self.current_silence
                 if (silence is not None and silence.start is not None and not silence.has_ended
                         and processed_end >= silence.start - 0.5):
-                    # Audio inside a pause is never sent to ASR, so there is nothing left to compute.
+                    # Audio inside a pause is never sent to ASR: nothing to compute, nothing to commit.
+                    speech_end = min(processed_end, silence.start)
                     processed_end = audio_received_end
                 committed_end = self._latest_committed_transcription_end()
                 self.state.end_transcription_committed = committed_end
@@ -472,7 +474,7 @@ class AudioProcessor:
                 )
                 self.state.remaining_time_transcription_policy = max(
                     0.0,
-                    round(processed_end - committed_end, 1),
+                    round(speech_end - committed_end, 1),
                 )
             else:
                 self.state.remaining_time_transcription_processing = 0.0
