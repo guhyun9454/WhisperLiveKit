@@ -427,6 +427,21 @@ class OnlineASRProcessor:
         return Transcript(start, end, text)
 
 
+def _cut_repetition(tokens: List[ASRToken], max_n: int = 4, max_repeats: int = 2) -> List[ASRToken]:
+    """Truncate at a decoding loop: any 1..max_n-word phrase repeated back to back more than
+    max_repeats times (Whisper hallucination); the rest of a looping output is noise."""
+    words = [t.text.strip() for t in tokens]
+    for i in range(len(words)):
+        for n in range(1, max_n + 1):
+            phrase = words[i:i + n]
+            reps = 1
+            while words[i + reps * n:i + (reps + 1) * n] == phrase:
+                reps += 1
+            if reps > max_repeats:
+                return tokens[:i + max_repeats * n]
+    return tokens
+
+
 class UtteranceASRProcessor(OnlineASRProcessor):
     """Transcribe each utterance once instead of re-transcribing a growing buffer.
 
@@ -458,8 +473,10 @@ class UtteranceASRProcessor(OnlineASRProcessor):
             self.audio_buffer = np.array([], dtype=np.float32)
 
     def _transcribe(self, offset: float, audio: np.ndarray) -> List[ASRToken]:
-        prompt = self.asr.sep.join(t.text for t in self.committed[-40:])[-200:]
-        tokens = [t.with_offset(offset) for t in self.asr.ts_words(self.asr.transcribe(audio, init_prompt=prompt))]
+        # No previous-text prompt: with one greedy pass it sent large-v3-turbo into
+        # "QR에서 QR에서 ..." loops; an utterance carries enough context on its own.
+        words = self.asr.ts_words(self.asr.transcribe(audio, init_prompt=""))
+        tokens = [t.with_offset(offset) for t in _cut_repetition(words)]
         self.committed.extend(tokens)
         return tokens
 
