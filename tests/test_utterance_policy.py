@@ -33,13 +33,13 @@ def speech(seconds, level=0.5):
 def test_short_pauses_batch_until_min_length_then_one_call():
     asr = FakeASR()
     p = UtteranceASRProcessor(asr)
-    p.insert_audio_chunk(speech(3))
-    assert p.start_silence() == ([], 0.0)          # 3 s < MIN_S: keep collecting
+    p.insert_audio_chunk(speech(5))
+    assert p.start_silence() == ([], 0.0)          # 5 s < MIN_S: keep collecting
     p.end_silence(0.5, 0)
-    p.insert_audio_chunk(speech(4))
-    tokens, upto = p.start_silence()                # 7.5 s buffered: transcribe once
-    assert asr.calls == [7.5] and upto == 7.5
-    assert [t.start for t in tokens] == [0, 1, 2, 4, 5, 6]  # 3.0-3.5 s is the inserted pause
+    p.insert_audio_chunk(speech(6))
+    tokens, upto = p.start_silence()                # 11.5 s buffered: transcribe once
+    assert asr.calls == [11.5] and upto == 11.5
+    assert [t.start for t in tokens] == [0, 1, 2, 3, 4, 6, 7, 8, 9, 10]  # 5.0-5.5 s is the inserted pause
 
 
 def test_long_pause_keeps_audio_and_shifts_time():
@@ -58,13 +58,13 @@ def test_long_pause_keeps_audio_and_shifts_time():
 def test_monologue_is_cut_at_max_length_without_losing_words():
     asr = FakeASR()
     p = UtteranceASRProcessor(asr)
-    p.insert_audio_chunk(speech(16))
+    p.insert_audio_chunk(speech(21))
     tokens, upto = p.process_iter()
-    assert [t.start for t in tokens] == list(range(14))   # last 1.5 s held back
+    assert [t.start for t in tokens] == list(range(19))   # last 1.5 s held back
     assert upto == tokens[-1].end
     p.insert_audio_chunk(speech(2))
     rest, _ = p.finish()
-    assert [t.start for t in rest][0] >= 14 - 0.2 and len(asr.calls) == 2
+    assert [t.start for t in rest][0] >= 19 - 0.2 and len(asr.calls) == 2
 
 
 def test_decoding_loops_are_cut():

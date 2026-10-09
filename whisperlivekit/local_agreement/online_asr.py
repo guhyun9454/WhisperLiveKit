@@ -449,12 +449,12 @@ class UtteranceASRProcessor(OnlineASRProcessor):
     large-v3-turbo on an M2 one call costs ~3 s (the encoder always sees a padded 30 s
     window), so that never kept up with real time. Here audio is collected until a pause
     once at least MIN_S has accumulated (or MAX_S is reached), then transcribed once and
-    committed. Cost is ~one encoder pass per 6-15 s of speech; text appears when the
+    committed. Cost is ~one encoder pass per 10-20 s of speech; text appears when the
     utterance ends, with no partial hypothesis.
     """
 
-    MIN_S = 6.0    # VAD reports a pause every ~2 s in meetings; batching them keeps calls rare
-    MAX_S = 15.0   # cut long monologues; the last CUT_KEEP_S stay buffered so words aren't split
+    MIN_S = 10.0   # VAD reports a pause every ~2 s in meetings; batching them keeps calls rare
+    MAX_S = 20.0   # cut long monologues; the last CUT_KEEP_S stay buffered so words aren't split
     CUT_KEEP_S = 1.5
 
     def init(self, offset: Optional[float] = None):
