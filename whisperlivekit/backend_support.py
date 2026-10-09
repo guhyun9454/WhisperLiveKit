@@ -1,6 +1,8 @@
+import contextlib
 import importlib.util
 import logging
 import platform
+import threading
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +17,15 @@ def torch_device(preferred=None):
     if torch.backends.mps.is_available():
         return "mps"
     return "cpu"
+
+
+_MPS_LOCK = threading.Lock()
+
+
+def gpu_lock(device):
+    """PyTorch MPS aborts when two threads encode GPU work at once (ASR decoder vs. diarization),
+    so work on an MPS device is serialized; other devices are not locked."""
+    return _MPS_LOCK if str(device).startswith("mps") else contextlib.nullcontext()
 
 
 def module_available(module_name):

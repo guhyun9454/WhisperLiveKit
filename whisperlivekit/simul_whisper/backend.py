@@ -9,7 +9,7 @@ from typing import List, Optional, Tuple
 import numpy as np
 import torch
 
-from whisperlivekit.backend_support import faster_backend_available, mlx_backend_available, torch_device
+from whisperlivekit.backend_support import faster_backend_available, gpu_lock, mlx_backend_available, torch_device
 from whisperlivekit.model_paths import detect_model_format, resolve_model_path
 from whisperlivekit.simul_whisper.config import AlignAttConfig
 from whisperlivekit.simul_whisper.simul_whisper import AlignAtt
@@ -231,7 +231,8 @@ class SimulStreamingOnlineProcessor:
         Returns a tuple: (list of committed ASRToken objects, float representing the audio processed up to time).
         """
         try:
-            timestamped_words = self.model.infer(is_last=is_last)
+            with gpu_lock(self.model.device):
+                timestamped_words = self.model.infer(is_last=is_last)
 
             if not timestamped_words:
                 return [], self.end

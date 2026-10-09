@@ -7,7 +7,7 @@ from typing import List, Optional
 import numpy as np
 import torch
 
-from whisperlivekit.backend_support import torch_device
+from whisperlivekit.backend_support import gpu_lock, torch_device
 from whisperlivekit.timed_objects import SpeakerSegment
 
 logger = logging.getLogger(__name__)
@@ -270,7 +270,10 @@ class SortformerDiarizationOnline:
 
         audio = self.buffer_audio[:threshold]
         self.buffer_audio = self.buffer_audio[threshold:]
+        with gpu_lock(self.diar_model.device):
+            return self._diarize_chunk(audio)
 
+    def _diarize_chunk(self, audio):
         device = self.diar_model.device
         audio_signal_chunk = torch.tensor(audio, device=device).unsqueeze(0)
         audio_signal_length_chunk = torch.tensor([audio_signal_chunk.shape[1]], device=device)
