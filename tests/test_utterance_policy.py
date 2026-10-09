@@ -34,7 +34,7 @@ def test_short_pauses_batch_until_min_length_then_one_call():
     asr = FakeASR()
     p = UtteranceASRProcessor(asr, min_s=10)
     p.insert_audio_chunk(speech(5))
-    assert p.start_silence() == ([], 0.0)          # 5 s < MIN_S: keep collecting
+    assert p.start_silence() == ([], 5.0)          # 5 s < MIN_S: keep collecting (held, not lagging)
     p.end_silence(0.5, 0)
     p.insert_audio_chunk(speech(6))
     tokens, upto = p.start_silence()                # 11.5 s buffered: transcribe once
@@ -61,10 +61,23 @@ def test_monologue_is_cut_at_max_length_without_losing_words():
     p.insert_audio_chunk(speech(21))
     tokens, upto = p.process_iter()
     assert [t.start for t in tokens] == list(range(19))   # last 1.5 s held back
-    assert upto == tokens[-1].end
+    assert upto == 21                                     # held tail counts as received, not as compute lag
     p.insert_audio_chunk(speech(2))
     rest, _ = p.finish()
     assert [t.start for t in rest][0] >= 19 - 0.2 and len(asr.calls) == 2
+
+
+def test_flush_on_long_pause_transcribes_held_speech_and_keeps_time():
+    asr = FakeASR()
+    p = UtteranceASRProcessor(asr, min_s=10)
+    p.insert_audio_chunk(speech(3))
+    assert p.start_silence() == ([], 3.0)
+    tokens, upto = p.flush()                        # pause has lasted IDLE_FLUSH_S
+    assert [t.start for t in tokens] == [0, 1, 2] and upto == 3.0
+    p.end_silence(3, 0)                             # short pause after a flush: no zero padding
+    p.insert_audio_chunk(speech(1, 0.7))
+    tokens, _ = p.finish()
+    assert [(t.start, t.text) for t in tokens] == [(6, "w0.7-0")] and asr.calls == [3.0, 1.0]
 
 
 def test_decoding_loops_are_cut():

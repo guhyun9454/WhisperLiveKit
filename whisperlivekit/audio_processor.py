@@ -41,6 +41,7 @@ from whisperlivekit.translation_processor import close_translation, run_translat
 logger = logging.getLogger(__name__)
 
 MIN_DURATION_REAL_SILENCE = 5
+IDLE_FLUSH_S = 2.0  # utterance policy: transcribe the held utterance once a pause lasts this long
 
 
 def resolve_coalesce_min_s(min_s: Any) -> float:
@@ -458,6 +459,11 @@ class AudioProcessor:
             if getattr(getattr(self, "args", None), "transcription", True):
                 audio_received_end = self.total_pcm_samples / self.sample_rate if self.sample_rate else 0.0
                 processed_end = max(0.0, self.state.end_transcription_processed)
+                silence = self.current_silence
+                if (silence is not None and silence.start is not None and not silence.has_ended
+                        and processed_end >= silence.start - 0.5):
+                    # Audio inside a pause is never sent to ASR, so there is nothing left to compute.
+                    processed_end = audio_received_end
                 committed_end = self._latest_committed_transcription_end()
                 self.state.end_transcription_committed = committed_end
                 self.state.remaining_time_transcription_processing = max(
@@ -521,6 +527,34 @@ class AudioProcessor:
         tokens = tokens or []
         self.metrics.n_tokens_produced += len(tokens)
         return tokens, processed_upto
+
+    async def _flush_idle_utterance(self) -> bool:
+        """Transcribe a held utterance once the current pause is IDLE_FLUSH_S long.
+
+        The utterance policy waits for MIN_S of speech before transcribing, so without
+        this the last sentence before a long pause only appeared when speech resumed.
+        """
+        flush = getattr(self.transcription, "flush", None)
+        silence = self.current_silence
+        if flush is None or silence is None or silence.start is None or silence.has_ended:
+            return False
+        if not getattr(self.transcription, "audio_buffer", np.array([])).size:
+            return False
+        if self.total_pcm_samples / self.sample_rate - silence.start < IDLE_FLUSH_S:
+            return False
+        tokens, processed_upto = await self._run_counted_transcription_call(flush)
+        async with self.lock:
+            self.state.tokens.extend(tokens)
+            self.state.new_tokens.extend(tokens)
+            self.state.end_transcription_processed = max(self.state.end_transcription_processed, processed_upto)
+            if tokens:
+                self.state.end_buffer = max(self.state.end_buffer, tokens[-1].end)
+                self.state.end_transcription_committed = max(
+                    self.state.end_transcription_committed, tokens[-1].end or 0.0
+                )
+                self._any_asr_output = True
+            self._prune_state_tokens()
+        return True
 
     async def _run_counted_process_iter(self):
         """Run process_iter(), recording it in metrics like the normal path."""
@@ -635,6 +669,9 @@ class AudioProcessor:
                         timeout=0.5,
                     )
                 except asyncio.TimeoutError:
+                    if await self._flush_idle_utterance():
+                        deferred_audio_s = 0.0
+                        continue
                     # No new audio — just refresh buffer for streaming backends
                     _buffer_transcript = self.transcription.get_buffer()
                     async with self.lock:

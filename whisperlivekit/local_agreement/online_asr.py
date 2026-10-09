@@ -503,7 +503,9 @@ class UtteranceASRProcessor(OnlineASRProcessor):
             self.audio_buffer = self.audio_buffer[int((cut_at - self.buffer_time_offset) * self.SAMPLING_RATE):]
             self.buffer_time_offset = cut_at
             tokens += keep
-        return tokens, self.buffer_time_offset
+        # Held speech is waiting for the utterance to end, not for compute, so report it as
+        # processed; the UI then shows it as policy lag instead of a growing Compute value.
+        return tokens, self.get_audio_buffer_end_time()
 
     def start_silence(self):
         if self._buffer_s() >= self.MIN_S:
@@ -511,7 +513,7 @@ class UtteranceASRProcessor(OnlineASRProcessor):
         return self.process_iter()
 
     def end_silence(self, silence_duration: Optional[float], offset: float):
-        if silence_duration and silence_duration >= 5:
+        if silence_duration and (silence_duration >= 5 or not self.audio_buffer.size):
             # The parent drops the buffer and re-anchors on the last *emitted* token, which
             # lags here; queue the audio and continue from where it ended instead.
             self._queue_buffer()
@@ -521,6 +523,11 @@ class UtteranceASRProcessor(OnlineASRProcessor):
             super().end_silence(silence_duration, offset)
 
     def new_speaker(self, change_speaker) -> Tuple[List[ASRToken], float]:
+        self._queue_buffer()
+        return self.process_iter()
+
+    def flush(self) -> Tuple[List[ASRToken], float]:
+        """Transcribe whatever is held now (called when a pause runs long)."""
         self._queue_buffer()
         return self.process_iter()
 
