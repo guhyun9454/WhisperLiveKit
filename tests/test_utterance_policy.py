@@ -32,7 +32,7 @@ def speech(seconds, level=0.5):
 
 def test_short_pauses_batch_until_min_length_then_one_call():
     asr = FakeASR()
-    p = UtteranceASRProcessor(asr)
+    p = UtteranceASRProcessor(asr, min_s=10)
     p.insert_audio_chunk(speech(5))
     assert p.start_silence() == ([], 0.0)          # 5 s < MIN_S: keep collecting
     p.end_silence(0.5, 0)
@@ -44,7 +44,7 @@ def test_short_pauses_batch_until_min_length_then_one_call():
 
 def test_long_pause_keeps_audio_and_shifts_time():
     asr = FakeASR()
-    p = UtteranceASRProcessor(asr)
+    p = UtteranceASRProcessor(asr, min_s=10)
     p.insert_audio_chunk(speech(2))
     p.start_silence()
     p.end_silence(10, 0)                            # parent would drop these 2 s
@@ -57,7 +57,7 @@ def test_long_pause_keeps_audio_and_shifts_time():
 
 def test_monologue_is_cut_at_max_length_without_losing_words():
     asr = FakeASR()
-    p = UtteranceASRProcessor(asr)
+    p = UtteranceASRProcessor(asr, min_s=10)
     p.insert_audio_chunk(speech(21))
     tokens, upto = p.process_iter()
     assert [t.start for t in tokens] == list(range(19))   # last 1.5 s held back

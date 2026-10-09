@@ -277,6 +277,14 @@ def build_parser():
              "'utterance' to transcribe each pause-delimited utterance once (slow GPUs with large models; no partial text).",
     )
     parser.add_argument(
+        "--utterance-min-s",
+        type=float,
+        default=10.0,
+        dest="utterance_min_s",
+        help="With --backend-policy utterance: transcribe once at least this many seconds of speech "
+             "end in a pause (cut at twice this, max 28 s). Lower shows text sooner, slightly less accurate.",
+    )
+    parser.add_argument(
         "--backend",
         type=str,
         default="auto",

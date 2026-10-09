@@ -453,9 +453,15 @@ class UtteranceASRProcessor(OnlineASRProcessor):
     utterance ends, with no partial hypothesis.
     """
 
-    MIN_S = 10.0   # VAD reports a pause every ~2 s in meetings; batching them keeps calls rare
-    MAX_S = 20.0   # cut long monologues; the last CUT_KEEP_S stay buffered so words aren't split
-    CUT_KEEP_S = 1.5
+    CUT_KEEP_S = 1.5  # at a MAX_S cut the last seconds stay buffered so words aren't split
+
+    def __init__(self, asr, min_s: float = 10.0, **kwargs):
+        # VAD reports a pause every ~2 s in meetings; batching to min_s keeps calls rare and
+        # gives the model context. 5-min M2 replay, large-v3-turbo: 10-20 s CER 0.385,
+        # 4-12 s CER 0.426; both well under real time (RTF ~0.13).
+        self.MIN_S = min_s
+        self.MAX_S = min(2 * min_s, 28.0)  # one 30 s Whisper window
+        super().__init__(asr, **kwargs)
 
     def init(self, offset: Optional[float] = None):
         committed = getattr(self, "committed", [])
@@ -473,8 +479,8 @@ class UtteranceASRProcessor(OnlineASRProcessor):
             self.audio_buffer = np.array([], dtype=np.float32)
 
     def _transcribe(self, offset: float, audio: np.ndarray) -> List[ASRToken]:
-        # No previous-text prompt: with one greedy pass it sent large-v3-turbo into
-        # "QR에서 QR에서 ..." loops; an utterance carries enough context on its own.
+        # No previous-text prompt: with it large-v3-turbo looped ("QR에서 QR에서 ...") or
+        # returned almost nothing (CER 0.98 vs 0.385 in a 5-min replay).
         words = self.asr.ts_words(self.asr.transcribe(audio, init_prompt=""))
         tokens = [t.with_offset(offset) for t in _cut_repetition(words)]
         self.committed.extend(tokens)

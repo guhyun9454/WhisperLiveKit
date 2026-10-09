@@ -523,7 +523,7 @@ def online_factory(args, asr, language=None, context=None):
         asr = SessionASRProxy(asr)
     if policy == "utterance":
         from whisperlivekit.local_agreement.online_asr import UtteranceASRProcessor
-        return UtteranceASRProcessor(asr)
+        return UtteranceASRProcessor(asr, min_s=getattr(args, "utterance_min_s", 10.0))
     return OnlineASRProcessor(asr)
 
 

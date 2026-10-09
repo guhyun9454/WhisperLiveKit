@@ -83,6 +83,7 @@ class WhisperLiveKitConfig:
     sortformer_model_path: Optional[str] = None
     diarization_device: Optional[str] = None  # cuda / mps / cpu; default: cuda if available, else cpu
     backend_policy: str = "simulstreaming"
+    utterance_min_s: float = 10.0
     backend: str = "auto"
 
     # Transcription common

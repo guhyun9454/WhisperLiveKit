@@ -52,13 +52,19 @@ profile 파일에는 목소리 임베딩이 포함됩니다. git 저장소에 �
 
 ## 3. 서버 실행
 
+맥(Apple Silicon) 권장 명령입니다. large-v3-turbo를 실시간으로 씁니다.
+
 ```bash
-wlk --model base --lan ko \
-    --diarization --diarization-backend sortformer \
-    --speaker-profiles ~/wlk-profiles
+OMP_NUM_THREADS=2 wlk --model large-v3-turbo --lan ko \
+    --backend mlx-whisper --backend-policy utterance \
+    --diarization --speaker-profiles ~/wlk-profiles
 ```
 
 브라우저에서 `http://localhost:8000`을 엽니다.
+
+- `--backend-policy utterance`는 말이 끊길 때까지 모은 발화를 한 번에 전사합니다. 말하는 중에는 글자가 나오지 않고, 발화가 끝나고 1~4초 뒤에 표시됩니다.
+- 글자가 더 빨리 나오길 원하면 `--utterance-min-s 4`를 추가합니다. 정확도는 조금 낮아집니다.
+- `OMP_NUM_THREADS=2`는 화자 분리(CPU)가 Whisper와 CPU를 다투지 않게 합니다.
 
 ## 4. 웹에서 그룹 선택
 
@@ -81,24 +87,21 @@ wlk --model base --lan ko \
 
 결과 JSON의 각 line에는 `speaker_name`(판정 전에는 `null`)과 `speaker_confidence`가 추가됩니다.
 
-## 6. 속도가 느릴 때
+## 6. 맥 설정 측정 결과
 
-녹음 중 화면 위쪽의 지연 값으로 어느 단계가 느린지 확인합니다.
+M2(16GB) 맥북에서 OOD-VIL 회의 5분을 실제 속도로 재생해 측정했습니다. 글자 오류율(CER)은 클로바노트 전사와 비교한 값이라 상대 비교용입니다.
 
-| 계속 커지는 값 | 원인 | 조치 |
-|---|---|---|
-| Compute | Whisper 전사가 느림 | `--min-chunk-size 1.0`으로 전사 호출 횟수를 줄이거나, `--model small`로 낮춤 |
-| Diarization | Sortformer가 CPU에서 느림 | `--diarization-device mps`로 맥 GPU 사용 |
+| 설정 | 실시간 처리 | 지연 (중간값 / 90%) | CER |
+|---|---|---|---|
+| **turbo + utterance (기본 10초)** | 가능 (처리 시간 13%) | 1.3 / 3.6초 | **0.385** |
+| turbo + utterance (`--utterance-min-s 4`) | 가능 | 1.7 / 4.6초 | 0.426 |
+| turbo + LocalAgreement | 불가 (계속 밀림) | 124초 이상 | 0.54 |
+| turbo + SimulStreaming (기본값) | 불가 | 450초 이상 | – |
+| 참고: turbo 오프라인 한 번에 전사 | – | – | 0.25 |
 
-```bash
-PYTORCH_ENABLE_MPS_FALLBACK=1 wlk --model large-v3-turbo --lan ko \
-    --min-chunk-size 1.0 \
-    --diarization --diarization-device mps \
-    --speaker-profiles ~/wlk-profiles
-```
-
-- `--diarization-device mps`는 Sortformer와 TitaNet을 맥 GPU에서 실행합니다. 맥에서는 아직 시험하지 않았습니다. 시작할 때 오류가 나면 이 옵션을 빼고 실행하세요.
-- `PYTORCH_ENABLE_MPS_FALLBACK=1`은 MPS에서 지원하지 않는 연산만 CPU로 처리하게 합니다.
+- 지연은 발화가 끝난 뒤부터 잰 값입니다.
+- 화자 분리와 이름 판정은 CPU에 두는 편이 빠릅니다. 맥 GPU를 Whisper와 나눠 쓰면 전사가 더 밀렸습니다. `--diarization-device mps`로 바꿀 수는 있습니다.
+- 녹음 중 화면 위쪽 Compute 값이 계속 커지면 실시간을 따라가지 못하는 상태입니다. 다른 무거운 프로그램을 끄거나 `--model medium`/`small`로 낮추세요.
 
 ## 7. 참고 사항
 
