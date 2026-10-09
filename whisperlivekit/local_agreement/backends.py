@@ -212,9 +212,51 @@ class MLXWhisper(ASRBase):
         else:
             raise ValueError(f"Model name '{model_name}' is not recognized or not supported.")
 
+    def _transcribe_window(self, audio, init_prompt=""):
+        """Exactly one encoder pass, one greedy decode and one alignment for <= 30 s of audio.
+
+        mlx_whisper.transcribe() seeks inside the window: after timestamp-only outputs and
+        after every word-timestamp pass it jumps back to the last word and decodes again,
+        which made single 10 s calls take 26-46 s on an M2 with large-v3-turbo.
+        """
+        import mlx.core as mx
+        from mlx_whisper.audio import HOP_LENGTH, N_FRAMES, N_SAMPLES, SAMPLE_RATE, log_mel_spectrogram, pad_or_trim
+        from mlx_whisper.decoding import DecodingOptions, decode
+        from mlx_whisper.timing import add_word_timestamps
+        from mlx_whisper.tokenizer import get_tokenizer
+        from mlx_whisper.transcribe import ModelHolder
+
+        model = ModelHolder.get_model(self.model_size_or_path, mx.float16)
+        mel = log_mel_spectrogram(audio, n_mels=model.dims.n_mels, padding=N_SAMPLES)
+        num_frames = mel.shape[-2] - N_FRAMES
+        mel = pad_or_trim(mel, N_FRAMES, axis=-2).astype(mx.float16)
+        result = decode(model, mel, DecodingOptions(
+            task="transcribe",
+            language=self.original_language,
+            temperature=0.0,
+            without_timestamps=True,
+            prompt=init_prompt or None,
+            # A repetition loop otherwise runs to the 224-token limit; speech stays well
+            # under ~20 tokens/s.
+            sample_len=min(224, 32 + int(20 * len(audio) / SAMPLE_RATE)),
+            fp16=True,
+        ))
+        tokenizer = get_tokenizer(model.is_multilingual, num_languages=model.num_languages,
+                                  language=result.language, task="transcribe")
+        segment = {
+            "seek": 0, "start": 0.0, "end": num_frames * HOP_LENGTH / SAMPLE_RATE,
+            "text": result.text, "tokens": [t for t in result.tokens if t < tokenizer.eot],
+            "no_speech_prob": result.no_speech_prob,
+        }
+        add_word_timestamps(segments=[segment], model=model, tokenizer=tokenizer, mel=mel,
+                            num_frames=num_frames, last_speech_timestamp=0.0)
+        return [segment]
+
     def transcribe(self, audio, init_prompt=""):
         if self.transcribe_kargs:
             logger.warning("Transcribe kwargs (vad, task) are not compatible with MLX Whisper and will be ignored.")
+        if len(audio) <= 30 * 16000:
+            return self._transcribe_window(audio, init_prompt)
         segments = self.model(
             audio,
             language=self.original_language,
