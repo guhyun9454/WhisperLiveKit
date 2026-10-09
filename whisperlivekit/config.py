@@ -81,7 +81,7 @@ class WhisperLiveKitConfig:
     disable_punctuation_split: bool = False
     diarization_backend: str = "sortformer"
     sortformer_model_path: Optional[str] = None
-    diarization_device: Optional[str] = None  # cuda / mps / cpu; default: cuda, else mps, else cpu
+    diarization_device: Optional[str] = None  # cuda / mps / cpu; default: cuda if available, else cpu
     backend_policy: str = "simulstreaming"
     backend: str = "auto"
 

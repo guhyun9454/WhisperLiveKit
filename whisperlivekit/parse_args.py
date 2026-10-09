@@ -75,7 +75,8 @@ def build_parser():
         default=None,
         choices=["cuda", "mps", "cpu"],
         dest="diarization_device",
-        help="Device for Sortformer and speaker-identity models (default: cuda, else Apple GPU (mps), else cpu).",
+        help="Device for Sortformer and speaker-identity models (default: cuda if available, else cpu). "
+             "'mps' uses the Apple GPU, which the MLX Whisper backend also uses.",
     )
 
     parser.add_argument(

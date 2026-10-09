@@ -8,15 +8,15 @@ logger = logging.getLogger(__name__)
 
 
 def torch_device(preferred=None):
-    """Device for PyTorch models: the given one, else CUDA, else Apple GPU (MPS), else CPU."""
+    """Device for PyTorch models: the given one, else CUDA, else CPU.
+
+    MPS is opt-in: on an M2 the MLX Whisper backend and PyTorch models sharing the Apple GPU
+    were slower than keeping the PyTorch side on CPU (ASR lag 208 s vs 80 s in a 5-min replay).
+    """
     if preferred:
         return preferred
     import torch
-    if torch.cuda.is_available():
-        return "cuda"
-    if torch.backends.mps.is_available():
-        return "mps"
-    return "cpu"
+    return "cuda" if torch.cuda.is_available() else "cpu"
 
 
 _MPS_LOCK = threading.Lock()
