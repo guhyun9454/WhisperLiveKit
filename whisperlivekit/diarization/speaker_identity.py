@@ -27,6 +27,7 @@ import logging
 import pathlib
 import re
 import threading
+import unicodedata
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Protocol
 
@@ -226,18 +227,27 @@ class SpeakerIdentityModel:
         self.root = pathlib.Path(profile_dir)
         self.threshold, self.margin, self.candidates = threshold, margin, candidates
 
-    def groups(self) -> Dict[str, List[str]]:
-        """{group: [names]} for every subdirectory holding profiles."""
+    def _group_dirs(self) -> Dict[str, pathlib.Path]:
+        # NFC keys: macOS Finder stores Korean folder names decomposed (NFD), browsers send NFC.
         if not self.root.is_dir():
             return {}
-        return {d.name: sorted(json.loads(f.read_text(encoding="utf-8"))["name"] for f in d.glob("*.json"))
-                for d in sorted(self.root.iterdir()) if d.is_dir() and any(d.glob("*.json"))}
+        return {unicodedata.normalize("NFC", d.name): d for d in sorted(self.root.iterdir())
+                if d.is_dir() and any(d.glob("*.json"))}
+
+    def groups(self) -> Dict[str, List[str]]:
+        """{group: [names]} for every subdirectory holding profiles."""
+        return {g: sorted(json.loads(f.read_text(encoding="utf-8"))["name"] for f in d.glob("*.json"))
+                for g, d in self._group_dirs().items()}
 
     def new_session(self, group: Optional[str] = None) -> SessionSpeakerIdentifier:
-        if group and group not in self.groups():  # also rejects path tricks like "../x"
-            raise ValueError(f"Unknown speaker profile group {group!r}; available: {sorted(self.groups())}")
+        directory = self.root
+        if group:
+            dirs = self._group_dirs()  # lookup by name also rejects path tricks like "../x"
+            directory = dirs.get(unicodedata.normalize("NFC", group))
+            if directory is None:
+                raise ValueError(f"Unknown speaker profile group {group!r}; available: {sorted(dirs)}")
         # Read from disk per session, so people enrolled since the last session are picked up.
-        profiles = SpeakerProfiles(self.root / group if group else self.root, model=self.embedder.name)
+        profiles = SpeakerProfiles(directory, model=self.embedder.name)
         return SessionSpeakerIdentifier(self.embedder, profiles, self.threshold, self.margin,
                                         candidates=self.candidates)
 

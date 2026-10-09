@@ -12,13 +12,14 @@ Sortformer 화자 분리 결과(화자 1~4)를 미리 등록한 사람 이름으
 brew install ffmpeg
 git clone -b persistent-speaker-identity https://github.com/guhyun9454/WhisperLiveKit
 cd WhisperLiveKit
-python3.11 -m venv .venv          # NeMo는 Python 3.10~3.12 필요
+python3.11 -m venv .venv          # 3.12에서는 tokenizers 설치가 실패할 수 있음
 source .venv/bin/activate
-pip install -e ".[mlx-whisper,diarization-sortformer,cpu]"
+pip install -e ".[mlx-whisper,diarization-sortformer,cpu]" "transformers>=5" "tokenizers>=0.22"
 ```
 
 - 전사(Whisper)는 mlx-whisper 백엔드를 사용하므로 맥 GPU에서 실행됩니다.
 - 화자 분리(Sortformer)와 이름 판정(TitaNet)은 CUDA가 없으면 CPU에서 실행됩니다.
+- `transformers`, `tokenizers` 버전을 함께 지정하지 않으면 매우 오래된 transformers가 설치돼 NeMo import가 실패할 수 있습니다.
 - 처음 실행할 때 Sortformer, TitaNet, Whisper 모델을 Hugging Face에서 내려받습니다.
 
 ## 2. profile 준비

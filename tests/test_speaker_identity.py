@@ -143,6 +143,9 @@ def test_profile_groups_are_chosen_per_session(tmp_path):
     assert model.new_session("lab").names == ["Alice"]
     assert model.new_session("company").names == ["Bob"]
     assert model.new_session().names == []  # no profiles directly in the root
+    import unicodedata
+    SpeakerProfiles(tmp_path / unicodedata.normalize("NFD", "회사"), model="fake").add("Carol", np.stack([voice(2)]))
+    assert model.new_session("회사").names == ["Carol"]  # Finder-made (NFD) folder, NFC request
     for bad in ("nope", "../lab"):
         with pytest.raises(ValueError):
             model.new_session(bad)
